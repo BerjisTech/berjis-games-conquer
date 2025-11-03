@@ -18,7 +18,8 @@
     "mapbox-gl": "^3.4.0",
     "rxjs": "^7.8.0",
     "tslib": "^2.6.0",
-    "zone.js": "^0.14.0"
+    "zone.js": "^0.14.0",
+    "tailwindcss": "^4.1.16"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^18.0.0",
