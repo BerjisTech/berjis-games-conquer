@@ -1,9 +1,10 @@
-import { Component, AfterViewInit, inject, signal } from '@angular/core';
+import { Component, AfterViewInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import mapboxgl from 'mapbox-gl';
 import { getConfig } from './config';
 import { ApiService } from './api.service';
+import { CoreAuthSession } from '@berjis/angular-auth';
 
 type Country = { id: string; name: string; status: string; code?: string; center_lat?: number; center_lng?: number };
 
@@ -28,26 +29,32 @@ type Country = { id: string; name: string; status: string; code?: string; center
     </section>
   `
 })
-export class HomeComponent implements AfterViewInit {
+export class HomeComponent implements AfterViewInit, OnDestroy {
   private http = inject(HttpClient);
   private api = inject(ApiService);
+  private removeSessionListener = this.api.onSessionChange((session: CoreAuthSession) => {
+    this.authed = !!session?.valid;
+  });
+
   countries = signal<Country[]>([]);
   selected = signal<string>('');
   map?: mapboxgl.Map;
-  authed: boolean | null = null;
+  authed = false;
 
   get hasToken() { return !!getConfig().mapboxToken; }
 
   async ngAfterViewInit() {
     // Ensure user is authenticated (shared session via landing)
     try {
-      const v = await this.api.ensureAuth();
-      this.authed = !!v?.data?.valid;
-    } catch { this.authed = false; }
+      const session = await this.api.ensureAuth();
+      this.authed = !!session?.valid;
+    } catch {
+      this.authed = false;
+    }
+
     // Load countries
     this.http.get<{ success: boolean; data: Country[] }>(`${getConfig().apiBase}/v1/countries`).subscribe(r => {
       this.countries.set(r?.data || []);
-      // Add markers if map ready
       this.addMarkers();
     });
 
@@ -83,6 +90,10 @@ export class HomeComponent implements AfterViewInit {
     });
   }
 
+  ngOnDestroy() {
+    this.removeSessionListener?.();
+  }
+
   private addMarkers() {
     if (!this.map) return;
     this.countries().forEach(c => {
@@ -98,7 +109,7 @@ export class HomeComponent implements AfterViewInit {
   onSelect(id: string) { this.selected.set(id); }
 
   join() {
-    if (!this.authed) { alert('Please sign in at berjis.test first.'); return; }
+    if (!this.authed) { alert('Please sign in at berjis.tech first.'); return; }
     const id = this.selected(); if (!id) return;
     this.http.post(`${getConfig().apiBase}/v1/players/join`, { countryId: id }, { withCredentials: true })
       .subscribe(() => alert('Joined country.')); // MVP toast
